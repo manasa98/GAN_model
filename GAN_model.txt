@@ -1,0 +1,103 @@
+from numpy import hstack                          # importing the modules for GAN
+from numpy import zeros
+from numpy import ones
+from numpy.random import rand
+from numpy.random import randn
+from numpy.random import randint
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Dense
+from matplotlib import pyplot
+from numpy import reshape
+
+def define_discriminator(n_inputs=56):                            # defining the discriminator model
+	model = Sequential()
+	model.add(Dense(25, activation='relu', kernel_initializer='he_uniform', input_dim=n_inputs))
+	model.add(Dense(25, activation='relu', kernel_initializer='he_uniform'))
+	model.add(Dense(25, activation='relu', kernel_initializer='he_uniform'))
+	model.add(Dense(1, activation='sigmoid'))
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+	return model
+
+                                                      
+def define_generator(latent_dim, n_outputs=56):                      # defining the generator model
+	model = Sequential()
+	model.add(Dense(15, activation='relu', kernel_initializer='he_uniform', input_dim=latent_dim))
+	model.add(Dense(25, activation='relu', kernel_initializer='he_uniform'))
+	model.add(Dense(25, activation='relu', kernel_initializer='he_uniform'))
+	model.add(Dense(n_outputs, activation='linear'))
+	return model
+
+
+def define_gan(generator, discriminator):                               # defining the GAN model by linking generator model to discriminator model
+	discriminator.trainable = False
+	model = Sequential()
+	model.add(generator)
+	model.add(discriminator)
+	model.compile(loss='binary_crossentropy', optimizer='adam')
+	return model
+
+
+def generate_real_samples(n_samples):                                   # Generating the real samples by taking the real data-set points and labeling them 1
+	ix = randint(0, db.shape[0], n_samples)
+	reshape(ix,(1,n_samples))
+	X = db.iloc[ix].values
+	imputer=SimpleImputer(missing_values=np.nan,strategy='mean')
+	imputer.fit(X[:,0:56])
+	X[:,0:56]=imputer.transform(X[:,0:56])
+	sc=MinMaxScaler(feature_range=(0,1))
+	X=sc.fit_transform(X)
+	y = ones((n_samples, 1))
+	return X, y
+
+
+def generate_fake_samples(generator, latent_dim, n):                  # Generating the fake samples by the generator and labelling them 0
+	x_input = generate_latent_points(latent_dim, n)
+	X = generator.predict(x_input)
+	y = zeros((n, 1))
+	return X, y
+
+
+def generate_latent_points(latent_dim, n):                           # Generating the latent points for the input of the generator
+	x_input = randn(latent_dim * n)
+	x_input = x_input.reshape(n, latent_dim)
+	return x_input
+
+
+def summarize_performance(epoch, generator, discriminator, latent_dim, n=128):                  # measuring the performance of the discriminator for real samples and fake samples       
+	x_real, y_real = generate_real_samples(n)
+	_, acc_real = discriminator.evaluate(x_real, y_real, verbose=0)
+	x_fake, y_fake = generate_fake_samples(generator, latent_dim, n)
+	_, acc_fake = discriminator.evaluate(x_fake, y_fake, verbose=0)
+	print(epoch, acc_real, acc_fake)
+
+ 
+def train(g_model, d_model, gan_model, latent_dim, n_epochs=100000, n_batch=64, n_eval=1000):       # defining the function to train the GAN model
+	half_batch = int(n_batch / 2)
+	for i in range(n_epochs):
+		x_real, y_real = generate_real_samples(half_batch)                                  
+		x_fake, y_fake = generate_fake_samples(g_model, latent_dim, half_batch)
+		d_model.train_on_batch(x_real, y_real)                                              # training the discriminator with real samples
+		d_model.train_on_batch(x_fake, y_fake)                                              # training the discriminator with fake samples
+		x_gan = generate_latent_points(latent_dim, n_batch)
+		y_gan = ones((n_batch, 1))                                                         
+		gan_model.train_on_batch(x_gan, y_gan)                                              # training the generator model by fixing the discriminator model
+		if (i+1) % n_eval == 0:
+			summarize_performance(i, g_model, d_model, latent_dim)
+
+
+latent_dim = 5
+discriminator = define_discriminator()                       # creating the discriminator model                     
+generator = define_generator(latent_dim)                     # creating the generator model
+gan_model = define_gan(generator, discriminator)             # creating the GAN model
+
+ 
+
+train(generator, discriminator, gan_model, latent_dim)          # training the model for 1,00,000 iterations
+
+A_fake, b_fake = generate_fake_samples(generator,5,10000)       # generating the synthetic data   
+
+x_new_train =scaler.inverse_transform(A_fake[:,0:55])           # reverse scaling the synthetic data
+
+np.savetxt("Syn_data.csv",x_new_train, delimiter=",")                # saving the synthetic data to a CSV file
+
+
